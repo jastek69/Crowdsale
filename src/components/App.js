@@ -1,0 +1,110 @@
+import { useEffect, useState } from 'react';
+import { Container } from 'react-bootstrap';
+import { ethers } from 'ethers'
+
+//Components
+import Navigation from './Navigation';
+import Buy from './Buy';
+import Info from './Info';
+import Progress from './Progress';
+import Loading from './Loading';
+
+
+// ABIs
+import TOKEN_ABI from '../abis/Token.json'
+import CROWDSALE_ABI from '../abis/Crowdsale.json';
+
+// config
+import config from '../config.json'
+
+function App() {
+    const [provider, setProvider] = useState(null);  // Array of parallel assignment
+    const [crowdsale, setCrowdsale] = useState(null)
+    
+    const [account, setAccount] = useState(null);  // Array of parallel assignment
+    const [accountBalance, setAccountBalance] = useState(0);
+
+    const [price, setPrice] = useState(0) // add to Fetch price
+    const [maxTokens, setMaxTokens] = useState(0)
+    const [tokensSold, setTokensSold] = useState(0)
+
+
+    const [isLoading, setIsLoading] = useState(true); // Prevent infinite loop of loading account
+
+    // account -> Variable of current account Value
+    // setAccount('0x0...') -> Function to update account value
+    // null is default value
+
+    const loadBlockchainData = async () => {
+        // Initiate provider
+        const provider = new ethers.providers.Web3Provider(window.ethereum)
+        setProvider(provider)
+
+        // Initiate contracts
+        const token = new ethers.Contract(config[31337].token.address, TOKEN_ABI, provider)
+        console.log(token.address)
+
+        const crowdsale = new ethers.Contract(config[31337].crowdsale.address, CROWDSALE_ABI, provider)
+        setCrowdsale(crowdsale)        
+        
+        // Fetch account then pass to info.js to display
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+        const account = ethers.utils.getAddress(accounts[0]) //ethers.util formats address properly
+        setAccount(account)
+
+        // Fetch account balance then pass to info.js to display and set these values in the State
+        const accountBalance = ethers.utils.formatUnits(await token.balanceOf(account), 18) //ethers formatUnits convert Big Number of account
+        setAccountBalance(accountBalance)
+
+
+        //Fetch price
+        const price = ethers.utils.formatUnits(await crowdsale.price(), 18)    
+        setPrice(price)
+
+        // Fetch max tokens
+        const maxTokens = ethers.utils.formatUnits(await crowdsale.maxTokens(), 18)    
+        setMaxTokens(maxTokens)
+
+        // Fetch tokens sold
+        const tokensSold = ethers.utils.formatUnits(await crowdsale.tokensSold(), 18)
+        setTokensSold(tokensSold)
+
+        setIsLoading(false)
+
+        // Add to state
+
+    }
+
+    useEffect(() => {
+        if (isLoading) {        // Check to make everything is loaded on page before rendering any of the content on the page - place in ternary below like and if else statement
+            loadBlockchainData()
+        }
+        
+    }, [isLoading]);
+
+    return(
+        <Container>
+            <Navigation />
+
+            <h1 className='my-4 text-center'>Introducing SOBek Token!</h1>
+
+            {isLoading ? (
+                <Loading />
+             ) : (
+                <>
+                    <p className="text-center"><strong>Current Price</strong> {price} ETH</p>
+                    <Buy provider={provider} price={price} crowdsale={crowdsale} setISLoading={setIsLoading} />
+                    <Progress maxTokens={maxTokens} tokensSold={tokensSold} />
+                </>                
+             )}
+
+            <hr />
+
+            {account && (
+                <Info account={account} accountBalance={accountBalance} />          
+            )}               
+        </Container>
+    )
+}
+
+export default App;
